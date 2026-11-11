@@ -10,6 +10,7 @@ let package = Package(
     targets: [
         .target(name: "StorageCore"),
         .executableTarget(name: "davinci-storage", dependencies: ["StorageCore"]),
+        .executableTarget(name: "DaVinciStorageApp", dependencies: ["StorageCore"]),
         // Command Line Tools only (no Xcode): point the compiler at the swift-testing macro plugin
         // and the linker/runtime at Testing.framework.
         .testTarget(
