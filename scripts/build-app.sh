@@ -12,6 +12,7 @@ rm -rf "$APP.tmp"
 mkdir -p "$APP.tmp/Contents/MacOS" "$APP.tmp/Contents/Resources"
 cp "$BIN" "$APP.tmp/Contents/MacOS/DaVinciStorageApp"
 cp Resources/Info.plist "$APP.tmp/Contents/Info.plist"
+cp Resources/AppIcon.icns "$APP.tmp/Contents/Resources/AppIcon.icns"
 codesign --force --sign - "$APP.tmp"
 
 # Replace the previous build (old copy goes to the Trash, not rm).
@@ -20,4 +21,5 @@ if [ -d "$APP" ]; then
 fi
 mv "$APP.tmp" "$APP"
 codesign --verify --verbose=1 "$APP"
+touch "$APP"   # let Finder/Dock pick up the new icon
 echo "Installed: $APP"
