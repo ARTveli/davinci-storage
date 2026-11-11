@@ -16,6 +16,7 @@ public enum CleanerRefusal: Error, Equatable {
 public struct CleanResult: Sendable {
     public var trashed: [URL] = []
     public var failed: [(url: URL, reason: String)] = []
+    public init() {}
 }
 
 /// Moves items to the Trash, but only inside known DaVinci locations and never inside a project library.

@@ -41,6 +41,9 @@ struct ProjectsView: View {
             .width(22)
             TableColumn("Назва", value: \.name) { (vm: RowVM) in
                 HStack(spacing: 5) {
+                    if model.isProtected(vm.row.id) {
+                        Image(systemName: "lock.fill").foregroundStyle(.secondary).help("Не чіпати").accessibilityLabel("не чіпати")
+                    }
                     Text(vm.name)
                         .foregroundStyle(model.isOld(vm.row.project) ? .secondary : .primary)
                     if vm.inexact {
@@ -97,8 +100,37 @@ struct ProjectInspector: View {
                             Text(row.project.lastModified, format: .dateTime.day().month(.wide).year())
                         }
                         LabeledContent("Разом на диску") { Text(formatBytes(row.total)).monospacedDigit() }
+                        Toggle(isOn: Binding(get: { model.isProtected(row.id) }, set: { model.setProtected(row.id, $0) })) {
+                            Label("Не чіпати", systemImage: "lock")
+                        }
+                        .help("Автовибір («Позначити старі», «старі бекапи») ніколи не вибиратиме цей проєкт")
                     }
                     .padding(.vertical, 4)
+                }
+                if !row.project.configuredMaskRoots.isEmpty {
+                    Section("Папка Magic Mask у налаштуваннях") {
+                        ForEach(row.project.configuredMaskRoots.sorted(), id: \.self) { path in
+                            let exists = FileManager.default.fileExists(atPath: path)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(path).font(.callout).textSelection(.enabled).lineLimit(2)
+                                Label(exists ? "існує" : "немає на диску",
+                                      systemImage: exists ? "checkmark.circle.fill" : "xmark.octagon.fill")
+                                    .font(.caption).foregroundStyle(exists ? AnyShapeStyle(.green) : AnyShapeStyle(.red))
+                            }
+                        }
+                    }
+                }
+                let old = model.trimItems(for: row.id)
+                if !old.isEmpty {
+                    Section("Старі бекапи (лишаються останні \(model.settings.keepProjectBackups))") {
+                        Toggle(isOn: Binding(get: { model.isSelected(old) }, set: { model.setSelected(old, $0) })) {
+                            HStack {
+                                Text(uaFiles(old.count))
+                                Spacer()
+                                Text(formatBytes(old.reduce(0) { $0 + $1.bytes })).monospacedDigit()
+                            }
+                        }
+                    }
                 }
                 ForEach(Category.allCases.filter { c in row.items.contains { $0.category == c } }, id: \.self) { c in
                     Section(c.title) {

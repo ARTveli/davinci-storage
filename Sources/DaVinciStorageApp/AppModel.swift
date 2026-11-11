@@ -12,6 +12,14 @@ final class AppModel: ObservableObject {
     @Published var months = 3
     @Published private(set) var resolveRunning = false
     @Published var lastClean: CleanResult?
+    /// Outcome of the library backup made before the last cleanup (folder name or error text).
+    @Published var lastBackupNote: String?
+    @Published var settings = StorageSettings.load() {
+        didSet { settings.save(); if oldValue.keepProjectBackups != settings.keepProjectBackups
+                    || oldValue.protectedProjectIDs != settings.protectedProjectIDs { rebuildItems() } }
+    }
+    /// Old snapshots of unprotected projects' backups (per settings.keepProjectBackups).
+    @Published private(set) var trimItems: [StorageItem] = []
 
     // UI state (kept here instead of @State — see Box.swift).
     @Published var section: SidebarSection? = .projects
@@ -61,15 +69,32 @@ final class AppModel: ObservableObject {
 
     private func apply(_ r: ScanResult) {
         result = r
+        rebuildItems()
+        isScanning = false
+    }
+
+    private func rebuildItems() {
+        guard let r = result else { return }
+        trimItems = backupTrimItems(r.report, keep: settings.keepProjectBackups, protected: settings.protectedProjectIDs)
         var map: [URL: StorageItem] = [:]
-        let rep = r.report
-        for it in rep.rows.flatMap(\.items) + rep.deleted.flatMap(\.items) + rep.duplicates.flatMap(\.items) + rep.service {
+        for it in r.selectableItems(keepProjectBackups: settings.keepProjectBackups, protected: settings.protectedProjectIDs) {
             map[it.url] = it
         }
         itemsByURL = map
         selected = selected.filter { map[$0] != nil }
-        isScanning = false
     }
+
+    // MARK: protected projects
+
+    func isProtected(_ id: String) -> Bool { settings.protectedProjectIDs.contains(id) }
+
+    func setProtected(_ id: String, _ on: Bool) {
+        if on { settings.protectedProjectIDs.insert(id) } else { settings.protectedProjectIDs.remove(id) }
+    }
+
+    func selectOldBackups() { selected.formUnion(trimItems.map(\.url)) }
+
+    func trimItems(for projectID: String) -> [StorageItem] { trimItems.filter { $0.projectIDs.contains(projectID) } }
 
     // MARK: selection
 
@@ -87,7 +112,7 @@ final class AppModel: ObservableObject {
     func selectOld(months: Int) {
         guard let r = result?.report else { return }
         self.months = months
-        selected.formUnion(oldSelection(r, months: months))
+        selected.formUnion(oldSelection(r, months: months, protected: settings.protectedProjectIDs))
     }
 
     var selectedCount: Int { selected.count }
@@ -100,6 +125,7 @@ final class AppModel: ObservableObject {
         case .projects: items = r.rows.flatMap(\.items)
         case .leftovers: items = (r.deleted + r.duplicates).flatMap(\.items)
         case .service: items = r.service
+        case .luts: return result?.luts.reduce(0) { $0 + $1.wasted } ?? 0
         }
         var seen = Set<URL>()
         return items.reduce(0) { seen.insert($1.url).inserted ? $0 + $1.bytes : $0 }
@@ -124,17 +150,18 @@ final class AppModel: ObservableObject {
         return rows.filter { it.projectIDs.contains($0.id) }.map(\.project.name)
     }
 
-    /// Re-scans first, then trashes only selected items that still exist with the same owners as when chosen.
+    /// Re-scans, backs up every library (and rotates old backups), then trashes only selected items that still
+    /// exist with the same owners as when chosen. If the backup fails, nothing is trashed.
     func trashSelected() {
         guard result != nil, !resolveRunning, !isScanning else { return }
         let chosen = selected.compactMap { itemsByURL[$0] }
+        let s = settings
         selected = []
         isScanning = true
         Task.detached(priority: .userInitiated) {
             let fresh = scanAll()
-            let rep = fresh.report
             var freshItems: [URL: StorageItem] = [:]
-            for it in rep.rows.flatMap(\.items) + rep.deleted.flatMap(\.items) + rep.duplicates.flatMap(\.items) + rep.service {
+            for it in fresh.selectableItems(keepProjectBackups: s.keepProjectBackups, protected: s.protectedProjectIDs) {
                 freshItems[it.url] = it
             }
             var ok: [URL] = []
@@ -143,11 +170,28 @@ final class AppModel: ObservableObject {
                 if let now = freshItems[it.url], Set(now.projectIDs) == Set(it.projectIDs) { ok.append(it.url) }
                 else { stale.append((it.url, "змінилося після сканування — переглянь і вибери знову")) }
             }
-            var res = fresh.makeCleaner().clean(ok.sorted { $0.path < $1.path })
+
+            var note: String
+            var res = CleanResult()
+            do {
+                let folder = try LibraryBackup.create(libraries: fresh.libraries, in: s.backupFolder, date: Date(),
+                                                      version: LibraryBackup.resolveVersion())
+                let rotated = LibraryBackup.rotate(in: s.backupFolder, keep: s.keepLibraryBackups)
+                note = "Бекап баз: \(folder.lastPathComponent)"
+                    + (rotated.isEmpty ? "" : " · старих бекапів у Кошик: \(rotated.count)")
+                res = fresh.makeCleaner().clean(ok.sorted { $0.path < $1.path })
+            } catch {
+                note = "Очищення скасовано — бекап баз не вдався. "
+                    + ((error as? LibraryBackup.BackupError)?.message ?? error.localizedDescription)
+                res.failed = ok.map { ($0, "не видалено: бекап баз не вдався") }
+            }
             res.failed += stale
+            let finalNote = note
+            let finalRes = res
             await MainActor.run {
                 self.isScanning = false
-                self.lastClean = res
+                self.lastBackupNote = finalNote
+                self.lastClean = finalRes
                 self.rescan()
             }
         }

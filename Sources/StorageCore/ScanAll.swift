@@ -62,3 +62,14 @@ public func scanAll(home: URL = FileManager.default.homeDirectoryForCurrentUser,
     }
     return result
 }
+
+public extension ScanResult {
+    /// Everything the user can select: report items, old backup snapshots of unprotected projects,
+    /// and LUT duplicate copies no project or DCTL uses.
+    func selectableItems(keepProjectBackups: Int, protected: Set<String>) -> [StorageItem] {
+        let r = report
+        return r.rows.flatMap(\.items) + r.deleted.flatMap(\.items) + r.duplicates.flatMap(\.items) + r.service
+            + backupTrimItems(r, keep: keepProjectBackups, protected: protected)
+            + luts.flatMap(\.copies).filter(\.isSelectable).map(\.storageItem)
+    }
+}

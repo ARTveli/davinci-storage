@@ -138,3 +138,26 @@ import Testing
         #expect(loc.crashReportsDir?.path == "/Users/t/Library/Logs/DiagnosticReports")
     }
 }
+
+@Suite struct SelectableItemsTests {
+    @Test func includesTrimItemsAndOnlyFreeLutCopies() {
+        let dir = makeTempDir().appendingPathComponent("585bbd4a-ba19-4d98-b863-18e2f5f4b8c0")
+        for ts in ["20261109172354", "20261109173354"] { makeFile(dir.appendingPathComponent("Project.db.\(ts)")) }
+        let id = dir.lastPathComponent
+        let report = analyze(projects: [project(id, "U")], unreadable: [],
+                             items: [StorageItem(category: .backups, url: dir, bytes: 1, projectIDs: [id], match: .uuidFolder, label: "U")])
+        let lutRoot = makeTempDir()
+        let free = LutCopy(url: lutRoot.appendingPathComponent("a.cube"), relativePath: "a.cube", bytes: 5)
+        var used = LutCopy(url: lutRoot.appendingPathComponent("b.cube"), relativePath: "b.cube", bytes: 5)
+        used.usedBy = ["P"]
+        var r = ScanResult(report: report, locations: testLocations(makeTempDir()), projects: [project(id, "U")], libraryRoots: [])
+        r.luts = [LutGroup(id: "h", copies: [free, used])]
+        let paths = Set(r.selectableItems(keepProjectBackups: 1, protected: []).map { $0.url.resolvingSymlinksInPath().path })
+        func has(_ u: URL) -> Bool { paths.contains(u.resolvingSymlinksInPath().path) }
+        #expect(has(dir.appendingPathComponent("Project.db.20261109172354")))
+        #expect(!has(dir.appendingPathComponent("Project.db.20261109173354")))
+        #expect(has(free.url))
+        #expect(!has(used.url))
+        #expect(has(dir))
+    }
+}

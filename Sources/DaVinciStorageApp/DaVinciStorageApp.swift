@@ -25,6 +25,9 @@ struct DaVinciStorageApp: App {
                 .frame(minWidth: 1100, minHeight: 620)
         }
         .defaultSize(width: 1440, height: 820)
+        Settings {
+            SettingsView().environmentObject(model)
+        }
         .commands {
             CommandGroup(after: .newItem) {
                 Button("Сканувати знову") { model.rescan() }
@@ -38,12 +41,14 @@ struct DaVinciStorageApp: App {
 enum SidebarSection: String, CaseIterable, Identifiable {
     case projects = "Проєкти"
     case leftovers = "Видалені проєкти і дублі"
+    case luts = "Дублі LUT"
     case service = "Службові кеші"
     var id: String { rawValue }
     var icon: String {
         switch self {
         case .projects: "film.stack"
         case .leftovers: "archivebox"
+        case .luts: "camera.filters"
         case .service: "gearshape.2"
         }
     }
@@ -66,6 +71,7 @@ struct ContentView: View {
                         switch model.section ?? .projects {
                         case .projects: ProjectsView(report: r.report)
                         case .leftovers: LeftoversView(report: r.report)
+                        case .luts: LutView(groups: r.luts)
                         case .service: ServiceView(report: r.report)
                         }
                     } else {
@@ -83,7 +89,7 @@ struct ContentView: View {
             Button("OK") { model.lastClean = nil }
         } message: {
             if let r = model.lastClean {
-                Text("У Кошику: \(r.trashed.count). Не вдалося: \(r.failed.count)."
+                Text((model.lastBackupNote.map { $0 + "\n" } ?? "") + "У Кошику: \(r.trashed.count). Не вдалося: \(r.failed.count)."
                      + r.failed.prefix(5).map { "\n• \($0.url.lastPathComponent): \($0.reason)" }.joined())
             }
         }
@@ -134,6 +140,15 @@ struct MainToolbar: ToolbarContent {
                 .disabled(model.isUncertain || model.result == nil)
                 .help(model.isUncertain ? "Частину даних не вдалося прочитати — автовибір вимкнено"
                                         : "Позначити все, що належить лише давно не відкритим проєктам")
+            }
+
+            if model.section == .projects || model.section == nil {
+                Button { model.selectOldBackups() } label: {
+                    Label("Позначити старі бекапи", systemImage: "clock.arrow.circlepath")
+                }
+                .accessibilityLabel("Позначити старі бекапи")
+                .disabled(model.trimItems.isEmpty)
+                .help("Позначити старі бекапи проєктів — лишаються останні \(model.settings.keepProjectBackups) (\(formatBytes(model.trimItems.reduce(0) { $0 + $1.bytes })))")
             }
 
             Button { model.rescan() } label: {

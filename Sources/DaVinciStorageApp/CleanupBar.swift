@@ -17,7 +17,7 @@ struct ConfirmSheet: View {
                     .font(.system(size: 40)).symbolRenderingMode(.hierarchical).foregroundStyle(.red)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Перемістити \(uaCount(items.count)) у Кошик?").font(.title3.weight(.semibold))
-                    Text("Звільнить \(formatBytes(model.selectedBytes)). Бази проєктів не змінюються. Перед видаленням програма ще раз перевірить диск, а все переміщене можна відновити з Кошика, доки ти його не очистиш.")
+                    Text("Звільнить \(formatBytes(model.selectedBytes)). Спершу програма зробить бекап усіх баз у «\(model.settings.backupFolder.path)» і ще раз перевірить диск. Бази проєктів не змінюються, а все переміщене можна відновити з Кошика, доки ти його не очистиш.")
                         .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }
