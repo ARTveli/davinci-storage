@@ -13,12 +13,14 @@ public enum LibraryBackup {
 
     public enum BackupError: Error, Equatable {
         case targetInsideLibrary
+        case noLibraries
         case copyFailed(String)
         case verificationFailed(String)
 
         public var message: String {
             switch self {
             case .targetInsideLibrary: "Папка бекапів лежить усередині бази проєктів — вибери іншу в налаштуваннях."
+            case .noLibraries: "Не знайдено жодної доступної бази проєктів для бекапу."
             case .copyFailed(let s): "Не вдалося скопіювати базу: \(s)"
             case .verificationFailed(let s): "Копія бази не збігається з оригіналом: \(s)"
             }
@@ -54,6 +56,12 @@ public enum LibraryBackup {
     throws -> URL {
         let fm = FileManager.default
         let target = canonical(root)
+        // A backup connected back into Resolve as a library must not be backed up again (backups of backups).
+        let libraries = libraries.filter { lib in
+            let r = canonical(lib.root)
+            return !(r == target || r.hasPrefix(target + "/"))
+        }
+        guard !libraries.isEmpty else { throw BackupError.noLibraries }
         for lib in libraries {
             let rp = canonical(lib.root.appendingPathComponent("Resolve Projects"))
             if target == rp || target.hasPrefix(rp + "/") { throw BackupError.targetInsideLibrary }
@@ -99,14 +107,18 @@ public enum LibraryBackup {
 
     /// Moves all but the newest `keep` marked backup folders to the Trash. Returns what was removed.
     @discardableResult
-    public static func rotate(in root: URL, keep: Int,
+    public static func rotate(in root: URL, keep: Int, liveLibraries: [Library] = [],
                               trash: (URL) throws -> Void = { try FileManager.default.trashItem(at: $0, resultingItemURL: nil) }) -> [URL] {
+        let live = liveLibraries.map { canonical($0.root) }
         let dec = JSONDecoder()
         dec.dateDecodingStrategy = .iso8601
         let dirs = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
         let marked: [(URL, Date)] = dirs.compactMap { dir in
             guard let data = try? Data(contentsOf: dir.appendingPathComponent(markerName)),
                   let m = try? dec.decode(Marker.self, from: data) else { return nil }
+            let d = canonical(dir)
+            // A backup that Resolve currently uses as a library is never rotated (nor counted).
+            if live.contains(where: { $0 == d || $0.hasPrefix(d + "/") }) { return nil }
             return (dir, m.date)
         }
         let ordered = marked.sorted { $0.1 != $1.1 ? $0.1 > $1.1 : $0.0.lastPathComponent > $1.0.lastPathComponent }

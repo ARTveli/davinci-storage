@@ -73,12 +73,14 @@ public extension ScanResult {
     func makeCleaner() -> Cleaner {
         let l = locations
         let roots = allCacheRoots(l, projects) + [l.backupRoot].compactMap { $0 } + [l.galleryProjectRoot, l.galleryLegacyRoot]
-            + l.magicMaskRoots + allProxyRoots(l, projects) + [l.lutRoot].compactMap { $0 }
+            + l.magicMaskRoots + allProxyRoots(l, projects)
         let crashFiles = l.crashReportsDir.map { dir in
             ((try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [])
                 .filter { $0.lastPathComponent.localizedCaseInsensitiveContains("Resolve") }
         } ?? []
-        let items = l.serviceItems.map(\.url) + crashFiles + projects.flatMap { $0.magicMaskDirs.map { URL(fileURLWithPath: $0) } }
+        // LUTs: only the exact copies that are free to remove — never anything else under the LUT folder.
+        let freeLuts = luts.flatMap(\.copies).filter(\.isSelectable).map(\.url)
+        let items = l.serviceItems.map(\.url) + crashFiles + freeLuts + projects.flatMap { $0.magicMaskDirs.map { URL(fileURLWithPath: $0) } }
         return Cleaner(allowedRoots: roots, allowedItems: items, libraryRoots: libraryRoots)
     }
 }

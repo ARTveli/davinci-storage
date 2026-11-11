@@ -57,8 +57,23 @@ public func scanAll(home: URL = FileManager.default.homeDirectoryForCurrentUser,
                             locations: locations, projects: projects, libraryRoots: config.libraries.map(\.root))
     result.libraries = config.libraries.filter(ProjectReader.isReachable)
     if let lutRoot = locations.lutRoot {
-        let refs = lutReferences(projects: projects).merging(dctlReferences(root: lutRoot)) { $0.union($1) }
-        result.luts = markUsage(findLutDuplicates(root: lutRoot), refs: refs)
+        // PowerGrades and other user galleries live in each library's User.db.
+        var dbs: [(URL, String)] = projects.map { ($0.dbURL, $0.name) }
+        for lib in result.libraries {
+            let users = lib.root.appendingPathComponent("Resolve Projects/Users")
+            for u in (try? FileManager.default.contentsOfDirectory(at: users, includingPropertiesForKeys: nil)) ?? [] {
+                let db = u.appendingPathComponent("User.db")
+                if FileManager.default.fileExists(atPath: db.path) { dbs.append((db, "PowerGrade · \(lib.name)")) }
+            }
+        }
+        let usage = lutReferences(databases: dbs)
+        let refs = usage.refs.merging(dctlReferences(root: lutRoot)) { $0.union($1) }
+        var groups = markUsage(findLutDuplicates(root: lutRoot), refs: refs)
+        // Fail closed: if any database (or zstd) could not be read, no LUT can be proven unused.
+        if !usage.complete || result.report.isUncertain || !Zstd.isAvailable {
+            groups = lockAll(groups, reason: "використання невідоме — не всі бази прочитано")
+        }
+        result.luts = groups
     }
     return result
 }

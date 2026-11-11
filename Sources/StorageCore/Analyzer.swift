@@ -107,6 +107,11 @@ public func analyze(projects: [Project], unreadable: [URL], items: [StorageItem]
                   service: service, unreadable: unreadable, warnings: warnings, grandTotal: grand)
 }
 
+/// Selection after a project is marked «Не чіпати»: everything owned (even partly) by it is deselected.
+public func deselecting(projectID: String, from selected: Set<URL>, items: [URL: StorageItem]) -> Set<URL> {
+    selected.filter { !(items[$0]?.projectIDs.contains(projectID) ?? false) }
+}
+
 /// Items to pre-select for "older than N months": only items whose every owner is old (in every library
 /// it appears in), never folder-name matches, and nothing at all when the scan is uncertain.
 public func oldSelection(_ r: Report, months: Int, now: Date = Date(), protected: Set<String> = []) -> [URL] {

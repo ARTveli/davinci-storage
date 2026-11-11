@@ -57,35 +57,70 @@ private let lutExtPatterns: [[UInt8]] = ["cube", "3dl", "dat", "csp", "ilut", "o
 /// Every LUT-looking string in every project database (all tables, raw and zstd-decompressed values),
 /// lowercased → names of projects that mention it.
 public func lutReferences(projects: [Project]) -> [String: Set<String>] {
+    lutReferences(databases: projects.map { ($0.dbURL, $0.name) }).refs
+}
+
+/// Same for any set of Resolve databases (Project.db, User.db for PowerGrades…). `complete` is false when any
+/// database could not be read in full — callers must then treat every LUT as possibly used.
+public func lutReferences(databases: [(URL, String)]) -> (refs: [String: Set<String>], complete: Bool) {
     var refs: [String: Set<String>] = [:]
-    for p in projects {
-        _ = ProjectReader.withReadOnlyDB(p.dbURL) { db -> Result<Void, ProjectReadError> in
+    var complete = true
+    for (url, label) in databases {
+        let r = ProjectReader.withReadOnlyDB(url) { db -> Result<Void, ProjectReadError> in
             var tables: [String] = []
             var stmt: OpaquePointer?
-            if sqlite3_prepare_v2(db, "SELECT name FROM sqlite_master WHERE type='table'", -1, &stmt, nil) == SQLITE_OK {
-                while sqlite3_step(stmt) == SQLITE_ROW { tables.append(String(cString: sqlite3_column_text(stmt, 0))) }
+            guard sqlite3_prepare_v2(db, "SELECT name FROM sqlite_master WHERE type='table'", -1, &stmt, nil) == SQLITE_OK else {
+                return .failure(.query(String(cString: sqlite3_errmsg(db))))
             }
+            var rc = sqlite3_step(stmt)
+            while rc == SQLITE_ROW { tables.append(String(cString: sqlite3_column_text(stmt, 0))); rc = sqlite3_step(stmt) }
             sqlite3_finalize(stmt)
+            guard rc == SQLITE_DONE else { return .failure(.query(String(cString: sqlite3_errmsg(db)))) }
             for t in tables {
                 var s: OpaquePointer?
-                guard sqlite3_prepare_v2(db, "SELECT * FROM \"\(t)\"", -1, &s, nil) == SQLITE_OK else { continue }
-                while sqlite3_step(s) == SQLITE_ROW {
+                guard sqlite3_prepare_v2(db, "SELECT * FROM \"\(t)\"", -1, &s, nil) == SQLITE_OK else {
+                    return .failure(.query(String(cString: sqlite3_errmsg(db))))
+                }
+                var step = sqlite3_step(s)
+                while step == SQLITE_ROW {
                     for c in 0..<sqlite3_column_count(s) {
                         let type = sqlite3_column_type(s, c)
                         guard type == SQLITE_BLOB || type == SQLITE_TEXT, let ptr = sqlite3_column_blob(s, c) else { continue }
                         let bytes = Array(UnsafeRawBufferPointer(start: ptr, count: Int(sqlite3_column_bytes(s, c))))
                         guard bytes.count > 4 else { continue }
                         for chunk in [bytes, Zstd.decompressEmbeddedFrame(bytes) ?? []] where !chunk.isEmpty {
-                            for ref in lutStrings(chunk) { refs[ref, default: []].insert(p.name) }
+                            for ref in lutStrings(chunk) { refs[ref, default: []].insert(label) }
                         }
                     }
+                    step = sqlite3_step(s)
                 }
                 sqlite3_finalize(s)
+                guard step == SQLITE_DONE else { return .failure(.query(String(cString: sqlite3_errmsg(db)))) }
             }
             return .success(())
         }
+        if case .failure = r { complete = false }
     }
-    return refs
+    return (refs, complete)
+}
+
+/// When usage can't be established, every copy is locked with `reason`.
+public func lockAll(_ groups: [LutGroup], reason: String) -> [LutGroup] {
+    groups.map { g in
+        var g = g
+        g.copies = g.copies.map { c in var c = c; if c.usedBy.isEmpty { c.usedBy = [reason] }; return c }
+        return g
+    }
+}
+
+/// Never trash every copy of a LUT: if all copies of a group are in `urls`, the first one is spared.
+public func sparingOneCopyPerGroup(_ urls: [URL], groups: [LutGroup]) -> (kept: [URL], spared: [URL]) {
+    let chosen = Set(urls)
+    var spare = Set<URL>()
+    for g in groups where !g.copies.isEmpty && g.copies.allSatisfy({ chosen.contains($0.url) }) {
+        spare.insert(g.copies[0].url)
+    }
+    return (urls.filter { !spare.contains($0) }, Array(spare))
 }
 
 /// Strings ending in a LUT extension: find ".ext" (case-insensitive, not followed by a letter/digit), then walk back

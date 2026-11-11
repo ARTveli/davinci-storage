@@ -89,7 +89,12 @@ final class AppModel: ObservableObject {
     func isProtected(_ id: String) -> Bool { settings.protectedProjectIDs.contains(id) }
 
     func setProtected(_ id: String, _ on: Bool) {
-        if on { settings.protectedProjectIDs.insert(id) } else { settings.protectedProjectIDs.remove(id) }
+        if on {
+            selected = deselecting(projectID: id, from: selected, items: itemsByURL)
+            settings.protectedProjectIDs.insert(id)
+        } else {
+            settings.protectedProjectIDs.remove(id)
+        }
     }
 
     func selectOldBackups() { selected.formUnion(trimItems.map(\.url)) }
@@ -176,10 +181,12 @@ final class AppModel: ObservableObject {
             do {
                 let folder = try LibraryBackup.create(libraries: fresh.libraries, in: s.backupFolder, date: Date(),
                                                       version: LibraryBackup.resolveVersion())
-                let rotated = LibraryBackup.rotate(in: s.backupFolder, keep: s.keepLibraryBackups)
+                let rotated = LibraryBackup.rotate(in: s.backupFolder, keep: s.keepLibraryBackups, liveLibraries: fresh.libraries)
                 note = "Бекап баз: \(folder.lastPathComponent)"
                     + (rotated.isEmpty ? "" : " · старих бекапів у Кошик: \(rotated.count)")
-                res = fresh.makeCleaner().clean(ok.sorted { $0.path < $1.path })
+                let (toTrash, spared) = sparingOneCopyPerGroup(ok.sorted { $0.path < $1.path }, groups: fresh.luts)
+                res = fresh.makeCleaner().clean(toTrash)
+                res.failed += spared.map { ($0, "лишено як останню копію LUT") }
             } catch {
                 note = "Очищення скасовано — бекап баз не вдався. "
                     + ((error as? LibraryBackup.BackupError)?.message ?? error.localizedDescription)
