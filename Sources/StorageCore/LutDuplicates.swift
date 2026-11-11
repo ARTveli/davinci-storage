@@ -52,8 +52,7 @@ private func sha256(_ url: URL) -> String? {
     return hasher.finalize().map { String(format: "%02x", $0) }.joined()
 }
 
-private let lutRefPattern = try! NSRegularExpression(
-    pattern: "[^\\x00-\\x1f]{0,300}?\\.(?:cube|3dl|dat|csp|ilut|olut)(?![A-Za-z0-9])", options: [.caseInsensitive])
+private let lutExtPatterns: [[UInt8]] = ["cube", "3dl", "dat", "csp", "ilut", "olut"].map { Array($0.utf8) }
 
 /// Every LUT-looking string in every project database (all tables, raw and zstd-decompressed values),
 /// lowercased → names of projects that mention it.
@@ -89,13 +88,36 @@ public func lutReferences(projects: [Project]) -> [String: Set<String>] {
     return refs
 }
 
-private func lutStrings(_ bytes: [UInt8]) -> [String] {
-    guard let latin = String(bytes: bytes, encoding: .isoLatin1) else { return [] }
-    return lutRefPattern.matches(in: latin, range: NSRange(location: 0, length: (latin as NSString).length)).compactMap { m in
-        let slice = Array(bytes[m.range.location..<(m.range.location + m.range.length)])
-        return (String(bytes: slice, encoding: .utf8) ?? String(bytes: slice, encoding: .isoLatin1))?
-            .precomposedStringWithCanonicalMapping.lowercased()
+/// Strings ending in a LUT extension: find ".ext" (case-insensitive, not followed by a letter/digit), then walk back
+/// over printable bytes (max 300). Linear in the input — the equivalent regex was ~20× slower on real databases.
+func lutStrings(_ bytes: [UInt8]) -> [String] {
+    var out: [String] = []
+    let n = bytes.count
+    var i = 0
+    while i < n {
+        if bytes[i] == 0x2E {                                        // "."
+            for pat in lutExtPatterns {
+                let end = i + 1 + pat.count
+                guard end <= n else { continue }
+                var ok = true
+                for k in 0..<pat.count where bytes[i + 1 + k] | 0x20 != pat[k] { ok = false; break }
+                guard ok else { continue }
+                if end < n {
+                    let c = bytes[end] | 0x20
+                    if (c >= 0x61 && c <= 0x7A) || (bytes[end] >= 0x30 && bytes[end] <= 0x39) { continue }
+                }
+                var start = i, steps = 0
+                while start > 0, bytes[start - 1] >= 0x20, steps < 300 { start -= 1; steps += 1 }
+                let slice = Array(bytes[start..<end])
+                if let str = String(bytes: slice, encoding: .utf8) ?? String(bytes: slice, encoding: .isoLatin1) {
+                    out.append(str.precomposedStringWithCanonicalMapping.lowercased())
+                }
+                break
+            }
+        }
+        i += 1
     }
+    return out
 }
 
 /// LUTs that DCTLs depend on. DCTL tools load LUTs by path (often from hidden `.resources` folders and from
