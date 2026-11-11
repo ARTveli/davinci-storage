@@ -5,6 +5,10 @@ public struct ScanResult: Sendable {
     public let locations: Locations
     public let projects: [Project]
     public let libraryRoots: [URL]
+    /// Libraries that were reachable (these get backed up before a cleanup).
+    public var libraries: [Library] = []
+    /// Byte-identical LUTs, with the projects that reference each copy.
+    public var luts: [LutGroup] = []
 }
 
 public let defaultPrefsDir = FileManager.default.homeDirectoryForCurrentUser
@@ -49,6 +53,12 @@ public func scanAll(home: URL = FileManager.default.homeDirectoryForCurrentUser,
     }
     let locations = Locations.real(home: home, config: config)
     let items = scanStorage(locations, projects: projects, user: user)
-    return ScanResult(report: analyze(projects: projects, unreadable: unreadable, items: items, warnings: warnings),
-                      locations: locations, projects: projects, libraryRoots: config.libraries.map(\.root))
+    var result = ScanResult(report: analyze(projects: projects, unreadable: unreadable, items: items, warnings: warnings),
+                            locations: locations, projects: projects, libraryRoots: config.libraries.map(\.root))
+    result.libraries = config.libraries.filter(ProjectReader.isReachable)
+    if let lutRoot = locations.lutRoot {
+        let refs = lutReferences(projects: projects).merging(dctlReferences(root: lutRoot)) { $0.union($1) }
+        result.luts = markUsage(findLutDuplicates(root: lutRoot), refs: refs)
+    }
+    return result
 }

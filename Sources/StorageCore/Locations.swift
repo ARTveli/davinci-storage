@@ -18,9 +18,16 @@ public struct Locations: Sendable {
     public var magicMaskRoots: [URL]
     public var proxyRoots: [URL]
     public var serviceItems: [ServiceLocation]
+    /// Resolve's LUT library (for duplicate detection).
+    public var lutRoot: URL?
+    /// macOS crash reports; files whose name contains "Resolve" are listed.
+    public var crashReportsDir: URL?
 
     public init(cacheRoots: [URL], backupRoot: URL?, galleryProjectRoot: URL, galleryLegacyRoot: URL,
-                magicMaskRoots: [URL], proxyRoots: [URL], serviceItems: [ServiceLocation]) {
+                magicMaskRoots: [URL], proxyRoots: [URL], serviceItems: [ServiceLocation],
+                lutRoot: URL? = nil, crashReportsDir: URL? = nil) {
+        self.lutRoot = lutRoot
+        self.crashReportsDir = crashReportsDir
         self.cacheRoots = cacheRoots
         self.backupRoot = backupRoot
         self.galleryProjectRoot = galleryProjectRoot
@@ -52,6 +59,9 @@ public struct Locations: Sendable {
                 ServiceLocation(label: "LUT-кеш (.LUT)", url: u.appendingPathComponent(".LUT")),
                 ServiceLocation(label: "Кеш програми",
                                 url: home.appendingPathComponent("Library/Caches/com.blackmagic-design.DaVinciResolve")),
-            ])
+                ServiceLocation(label: "Логи DaVinci", url: u.appendingPathComponent("logs")),
+            ],
+            lutRoot: s.appendingPathComponent("LUT"),
+            crashReportsDir: home.appendingPathComponent("Library/Logs/DiagnosticReports"))
     }
 }

@@ -1,7 +1,7 @@
 import Foundation
 
 public enum Category: String, CaseIterable, Sendable {
-    case cache, backups, stills, magicMask, proxy, service
+    case cache, backups, stills, magicMask, proxy, service, lut
 }
 
 public enum MatchKind: Sendable {
@@ -28,6 +28,8 @@ public struct Project: Hashable, Sendable {
     /// Working folders from Project Settings (cache files / proxy generation location), normalized paths.
     public var cacheRoots: Set<String>
     public var proxyRoots: Set<String>
+    /// Magic Mask folders as set in Project Settings (without the "/Magic Mask" suffix).
+    public var configuredMaskRoots: Set<String> = []
 
     public init(id: String, name: String, library: String, dbURL: URL, lastModified: Date,
                 stillIDs: Set<String>, magicMaskDirs: Set<String>,

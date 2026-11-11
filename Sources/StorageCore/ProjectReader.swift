@@ -66,9 +66,11 @@ public enum ProjectReader {
             masks.formUnion(folders.magicMaskRoots.map { normalizedPath(URL(fileURLWithPath: $0).appendingPathComponent("Magic Mask")) })
 
             let modified = lastMod.map { Date(timeIntervalSince1970: TimeInterval($0)) } ?? fileModificationDate(dbURL)
-            return .success(Project(id: id.lowercased(), name: name, library: library, dbURL: dbURL,
-                                    lastModified: modified, stillIDs: stills, magicMaskDirs: masks,
-                                    cacheRoots: folders.cacheRoots, proxyRoots: folders.proxyRoots))
+            var project = Project(id: id.lowercased(), name: name, library: library, dbURL: dbURL,
+                                  lastModified: modified, stillIDs: stills, magicMaskDirs: masks,
+                                  cacheRoots: folders.cacheRoots, proxyRoots: folders.proxyRoots)
+            project.configuredMaskRoots = folders.magicMaskRoots
+            return .success(project)
         }
     }
 
@@ -163,7 +165,7 @@ public enum ProjectReader {
         (try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date) ?? Date()
     }
 
-    private static func withReadOnlyDB<T>(_ url: URL, _ body: (OpaquePointer?) -> Result<T, ProjectReadError>) -> Result<T, ProjectReadError> {
+    static func withReadOnlyDB<T>(_ url: URL, _ body: (OpaquePointer?) -> Result<T, ProjectReadError>) -> Result<T, ProjectReadError> {
         var db: OpaquePointer?
         guard sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
             let msg = db.map { String(cString: sqlite3_errmsg($0)) } ?? "open failed"

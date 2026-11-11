@@ -69,6 +69,11 @@ public func scanStorage(_ loc: Locations, projects: [Project], user: UserGalleri
     for service in loc.serviceItems {
         add(.service, service.url, [], .unlinked, service.label)
     }
+    if let crashes = loc.crashReportsDir {
+        for f in files(in: crashes) where f.lastPathComponent.localizedCaseInsensitiveContains("Resolve") {
+            add(.service, f, [], .unlinked, "Звіт про збій DaVinci · \(f.lastPathComponent)")
+        }
+    }
     return items
 
     func addByName(_ category: Category, _ dir: URL, name rawName: String? = nil) {

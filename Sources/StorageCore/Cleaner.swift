@@ -72,8 +72,12 @@ public extension ScanResult {
     func makeCleaner() -> Cleaner {
         let l = locations
         let roots = allCacheRoots(l, projects) + [l.backupRoot].compactMap { $0 } + [l.galleryProjectRoot, l.galleryLegacyRoot]
-            + l.magicMaskRoots + allProxyRoots(l, projects)
-        let items = l.serviceItems.map(\.url) + projects.flatMap { $0.magicMaskDirs.map { URL(fileURLWithPath: $0) } }
+            + l.magicMaskRoots + allProxyRoots(l, projects) + [l.lutRoot].compactMap { $0 }
+        let crashFiles = l.crashReportsDir.map { dir in
+            ((try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [])
+                .filter { $0.lastPathComponent.localizedCaseInsensitiveContains("Resolve") }
+        } ?? []
+        let items = l.serviceItems.map(\.url) + crashFiles + projects.flatMap { $0.magicMaskDirs.map { URL(fileURLWithPath: $0) } }
         return Cleaner(allowedRoots: roots, allowedItems: items, libraryRoots: libraryRoots)
     }
 }

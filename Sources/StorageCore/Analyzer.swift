@@ -109,12 +109,12 @@ public func analyze(projects: [Project], unreadable: [URL], items: [StorageItem]
 
 /// Items to pre-select for "older than N months": only items whose every owner is old (in every library
 /// it appears in), never folder-name matches, and nothing at all when the scan is uncertain.
-public func oldSelection(_ r: Report, months: Int, now: Date = Date()) -> [URL] {
+public func oldSelection(_ r: Report, months: Int, now: Date = Date(), protected: Set<String> = []) -> [URL] {
     guard !r.isUncertain else { return [] }
     let cutoff = Calendar.current.date(byAdding: .month, value: -months, to: now) ?? now
     var newestByID: [String: Date] = [:]
     for row in r.rows { newestByID[row.id] = max(newestByID[row.id] ?? .distantPast, row.project.lastModified) }
-    let oldIDs = Set(newestByID.filter { $0.value < cutoff }.keys)
+    let oldIDs = Set(newestByID.filter { $0.value < cutoff }.keys).subtracting(protected)
     var urls = Set<URL>()
     for row in r.rows where oldIDs.contains(row.id) {
         for it in row.items where it.match != .byName && Set(it.projectIDs).isSubset(of: oldIDs) {

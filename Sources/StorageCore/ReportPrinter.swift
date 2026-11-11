@@ -13,6 +13,7 @@ public extension Category {
         case .magicMask: "Magic Mask"
         case .proxy: "Проксі"
         case .service: "Службове"
+        case .lut: "LUT"
         }
     }
 }
