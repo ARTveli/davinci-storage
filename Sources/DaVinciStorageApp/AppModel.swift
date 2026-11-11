@@ -13,6 +13,15 @@ final class AppModel: ObservableObject {
     @Published private(set) var resolveRunning = false
     @Published var lastClean: CleanResult?
 
+    // UI state (kept here instead of @State — see Box.swift).
+    @Published var section: SidebarSection? = .projects
+    @Published var search = ""
+    @Published var focusedProject: String? {
+        didSet { if focusedProject != nil && focusedProject != oldValue { inspectorShown = true } }
+    }
+    @Published var inspectorShown = false
+    @Published var confirming = false
+
     private(set) var itemsByURL: [URL: StorageItem] = [:]
     private var observers: [NSObjectProtocol] = []
 
@@ -75,9 +84,25 @@ final class AppModel: ObservableObject {
     }
 
     /// Selects everything that belongs only to projects not modified for `months` months (see `oldSelection`).
-    func selectOld() {
+    func selectOld(months: Int) {
         guard let r = result?.report else { return }
+        self.months = months
         selected.formUnion(oldSelection(r, months: months))
+    }
+
+    var selectedCount: Int { selected.count }
+
+    /// Unique on-disk total per sidebar section.
+    func total(_ s: SidebarSection) -> Int64 {
+        guard let r = result?.report else { return 0 }
+        let items: [StorageItem]
+        switch s {
+        case .projects: items = r.rows.flatMap(\.items)
+        case .leftovers: items = (r.deleted + r.duplicates).flatMap(\.items)
+        case .service: items = r.service
+        }
+        var seen = Set<URL>()
+        return items.reduce(0) { seen.insert($1.url).inserted ? $0 + $1.bytes : $0 }
     }
 
     var isUncertain: Bool { result?.report.isUncertain ?? true }
