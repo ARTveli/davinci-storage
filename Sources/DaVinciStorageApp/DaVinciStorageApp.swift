@@ -2,8 +2,15 @@ import AppKit
 import SwiftUI
 import StorageCore
 
+/// Single-window utility: closing the window quits the app. Otherwise the app kept running with no
+/// window, and coming back to it via the Dock or ⌘Tab showed nothing.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+}
+
 @main
 struct DaVinciStorageApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var model = AppModel()
 
     init() {
@@ -12,7 +19,7 @@ struct DaVinciStorageApp: App {
     }
 
     var body: some Scene {
-        WindowGroup("DaVinci Storage") {
+        Window("DaVinci Storage", id: "main") {
             ContentView()
                 .environmentObject(model)
                 .frame(minWidth: 1100, minHeight: 620)
