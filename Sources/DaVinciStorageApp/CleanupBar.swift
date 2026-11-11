@@ -59,6 +59,9 @@ struct ConfirmSheet: View {
                         Text("⚠️ Цю папку також використовує: \(shared.joined(separator: ", "))")
                             .font(.caption).foregroundStyle(.orange)
                     }
+                    if model.uncertainURLs.contains(it.url) {
+                        Text("⚠️ Не доведено, що проєкт видалено — частину даних не вдалося прочитати").font(.caption).foregroundStyle(.orange)
+                    }
                     if it.match == .byName {
                         Text("⚠️ Прив'язано лише за назвою папки").font(.caption).foregroundStyle(.orange)
                     }

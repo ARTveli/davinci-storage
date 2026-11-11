@@ -13,10 +13,33 @@ public let defaultPrefsDir = FileManager.default.homeDirectoryForCurrentUser
 /// Full pipeline: Resolve config → projects (read-only) → locations → scan → analyze.
 public func scanAll(home: URL = FileManager.default.homeDirectoryForCurrentUser,
                     prefsDir: URL = defaultPrefsDir) -> ScanResult {
-    let config = (try? ResolveConfigParser.load(prefsDir: prefsDir)) ?? ResolveConfig(libraries: [], backupRoot: nil)
+    var warnings: [String] = []
+    let config: ResolveConfig
+    do {
+        config = try ResolveConfigParser.load(prefsDir: prefsDir)
+    } catch {
+        config = ResolveConfig(libraries: [], backupRoot: nil)
+        warnings.append("Не вдалося прочитати налаштування DaVinci (dblist.conf) — список баз невідомий")
+    }
+    if config.libraries.isEmpty && warnings.isEmpty { warnings.append("У налаштуваннях DaVinci не знайдено жодної бази на диску") }
+    for name in config.skippedLibraries { warnings.append("База «\(name)» не на диску (PostgreSQL) — її проєкти не скануються") }
+    if !Zstd.isAvailable { warnings.append("Бібліотека zstd недоступна — шляхи Magic Mask у проєктах можуть бути неповними") }
+
     var projects: [Project] = []
     var unreadable: [URL] = []
+    var user = UserGalleries.empty
     for lib in config.libraries {
+        guard ProjectReader.isReachable(lib) else {
+            warnings.append("База «\(lib.name)» недоступна: \(lib.root.path)")
+            continue
+        }
+        switch ProjectReader.readUserGalleries(in: lib) {
+        case .success(let g):
+            user.userIDs.formUnion(g.userIDs)
+            user.stillIDs.formUnion(g.stillIDs)
+        case .failure:
+            warnings.append("Не вдалося прочитати галерею користувача (PowerGrades) у базі «\(lib.name)»")
+        }
         for db in ProjectReader.findProjectDBs(in: lib) {
             switch ProjectReader.read(dbURL: db, library: lib.name) {
             case .success(let p): projects.append(p)
@@ -25,7 +48,7 @@ public func scanAll(home: URL = FileManager.default.homeDirectoryForCurrentUser,
         }
     }
     let locations = Locations.real(home: home, config: config)
-    let items = scanStorage(locations, projects: projects)
-    return ScanResult(report: analyze(projects: projects, unreadable: unreadable, items: items),
+    let items = scanStorage(locations, projects: projects, user: user)
+    return ScanResult(report: analyze(projects: projects, unreadable: unreadable, items: items, warnings: warnings),
                       locations: locations, projects: projects, libraryRoots: config.libraries.map(\.root))
 }

@@ -23,10 +23,17 @@ public struct Report: Sendable {
     public let duplicates: [LeftoverGroup]
     public let service: [StorageItem]
     public let unreadable: [URL]
+    /// Scan-level problems (config unreadable, library unreachable, zstd missing…).
+    public let warnings: [String]
     public let grandTotal: Int64
+
+    /// True when the scan can't prove that leftovers really belong to no project.
+    public var isUncertain: Bool { !unreadable.isEmpty || !warnings.isEmpty }
 }
 
-public func analyze(projects: [Project], unreadable: [URL], items: [StorageItem]) -> Report {
+public func analyze(projects: [Project], unreadable: [URL], items: [StorageItem], warnings: [String] = []) -> Report {
+    let uncertain = !unreadable.isEmpty || !warnings.isEmpty
+    let caveat = " — але частину даних не вдалося прочитати, перевір вручну"
     let known = Set(projects.map(\.id))
     var service: [StorageItem] = []
     var orphans: [StorageItem] = []
@@ -55,8 +62,8 @@ public func analyze(projects: [Project], unreadable: [URL], items: [StorageItem]
             let sig = fileSignatures(it.url)
             if !sig.isEmpty, let (orig, _) = refSignatures.first(where: { Double($0.1.intersection(sig).count) >= 0.9 * Double(sig.count) }) {
                 duplicates.append(LeftoverGroup(id: "dup:" + it.url.path, title: "Копія: \(it.label)",
-                                                reason: "ті самі файли, що й у \(orig.url.path)",
-                                                items: [it], total: it.bytes, uncertain: false))
+                                                reason: "ті самі файли, що й у \(orig.url.path)" + (uncertain ? caveat : ""),
+                                                items: [it], total: it.bytes, uncertain: uncertain))
                 continue
             }
         }
@@ -64,7 +71,6 @@ public func analyze(projects: [Project], unreadable: [URL], items: [StorageItem]
     }
 
     // Deleted: group by unknown project UUID, otherwise by category + label.
-    let uncertain = !unreadable.isEmpty
     var order: [String] = []
     var groups: [String: [StorageItem]] = [:]
     for it in remaining {
@@ -89,7 +95,7 @@ public func analyze(projects: [Project], unreadable: [URL], items: [StorageItem]
             title = its[0].label
             reason = "жоден проєкт не посилається на цю папку"
         }
-        return LeftoverGroup(id: key, title: title, reason: reason, items: its,
+        return LeftoverGroup(id: key, title: title, reason: reason + (uncertain ? caveat : ""), items: its,
                              total: its.reduce(0) { $0 + $1.bytes }, uncertain: uncertain)
     }.sorted { $0.total > $1.total }
 
@@ -98,7 +104,24 @@ public func analyze(projects: [Project], unreadable: [URL], items: [StorageItem]
     for it in items where seen.insert(normalizedPath(it.url)).inserted { grand += it.bytes }
 
     return Report(rows: rows, deleted: deleted, duplicates: duplicates.sorted { $0.total > $1.total },
-                  service: service, unreadable: unreadable, grandTotal: grand)
+                  service: service, unreadable: unreadable, warnings: warnings, grandTotal: grand)
+}
+
+/// Items to pre-select for "older than N months": only items whose every owner is old (in every library
+/// it appears in), never folder-name matches, and nothing at all when the scan is uncertain.
+public func oldSelection(_ r: Report, months: Int, now: Date = Date()) -> [URL] {
+    guard !r.isUncertain else { return [] }
+    let cutoff = Calendar.current.date(byAdding: .month, value: -months, to: now) ?? now
+    var newestByID: [String: Date] = [:]
+    for row in r.rows { newestByID[row.id] = max(newestByID[row.id] ?? .distantPast, row.project.lastModified) }
+    let oldIDs = Set(newestByID.filter { $0.value < cutoff }.keys)
+    var urls = Set<URL>()
+    for row in r.rows where oldIDs.contains(row.id) {
+        for it in row.items where it.match != .byName && Set(it.projectIDs).isSubset(of: oldIDs) {
+            urls.insert(it.url)
+        }
+    }
+    return urls.sorted { $0.path < $1.path }
 }
 
 /// "filename|size" for every file under `url` — enough to recognise a copied Magic Mask folder.

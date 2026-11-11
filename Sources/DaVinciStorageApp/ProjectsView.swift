@@ -33,6 +33,8 @@ struct ProjectsView: View {
                 Stepper("старші за \(model.months) міс.", value: $model.months, in: 1...36)
                 Toggle("показувати лише старі", isOn: $onlyOld.value)
                 Button("Позначити старі") { model.selectOld() }
+                    .disabled(model.isUncertain)
+                    .help(model.isUncertain ? "Частину даних не вдалося прочитати — автовибір вимкнено, познач вручну" : "Позначити все, що належить лише старим проєктам")
                 Spacer()
             }
             .padding(10)

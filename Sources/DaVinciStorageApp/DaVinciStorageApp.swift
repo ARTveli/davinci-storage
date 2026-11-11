@@ -56,9 +56,15 @@ struct ContentView: View {
                         .foregroundStyle(.black)
                 }
                 if let r = model.result {
-                    if !r.report.unreadable.isEmpty {
-                        Text("Не вдалося прочитати \(r.report.unreadable.count) проєкт(и) — «видалене» може бути неточним")
-                            .font(.callout).padding(6).frame(maxWidth: .infinity).background(Color.yellow.opacity(0.3))
+                    if r.report.isUncertain {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("⚠️ «Видалене» може бути неточним:").font(.callout.weight(.semibold))
+                            ForEach(r.report.warnings, id: \.self) { Text("• \($0)").font(.caption) }
+                            ForEach(r.report.unreadable, id: \.self) {
+                                Text("• не вдалося прочитати проєкт: \($0.path)").font(.caption).textSelection(.enabled)
+                            }
+                        }
+                        .padding(8).frame(maxWidth: .infinity, alignment: .leading).background(Color.yellow.opacity(0.3))
                     }
                     switch section.value ?? .projects {
                     case .projects: ProjectsView(report: r.report)

@@ -59,10 +59,24 @@ public struct StorageItem: Hashable, Sendable {
 public struct ResolveConfig: Sendable {
     public let libraries: [Library]
     public let backupRoot: URL?
-    public init(libraries: [Library], backupRoot: URL?) {
+    /// Non-disk (e.g. PostgreSQL) libraries that are not scanned.
+    public let skippedLibraries: [String]
+    public init(libraries: [Library], backupRoot: URL?, skippedLibraries: [String] = []) {
         self.libraries = libraries
         self.backupRoot = backupRoot
+        self.skippedLibraries = skippedLibraries
     }
+}
+
+/// User-level gallery data (PowerGrades and other user albums) — never a project leftover.
+public struct UserGalleries: Sendable, Equatable {
+    public var userIDs: Set<String>
+    public var stillIDs: Set<String>
+    public init(userIDs: Set<String>, stillIDs: Set<String>) {
+        self.userIDs = userIDs
+        self.stillIDs = stillIDs
+    }
+    public static let empty = UserGalleries(userIDs: [], stillIDs: [])
 }
 
 /// Canonical form for comparing paths (standardized, NFC — Cyrillic names may be NFD on disk).

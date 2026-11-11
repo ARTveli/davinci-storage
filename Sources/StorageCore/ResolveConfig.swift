@@ -10,6 +10,15 @@ public enum ResolveConfigParser {
         }
     }
 
+    /// Names of libraries that are not disk databases (they are not scanned).
+    public static func parseSkippedLibraries(_ text: String) -> [String] {
+        text.split(whereSeparator: \.isNewline).compactMap { line in
+            let fields = line.split(separator: ":", omittingEmptySubsequences: false).map(String.init)
+            guard fields.count >= 3, fields.last != "DISK", !fields[0].isEmpty else { return nil }
+            return fields[0]
+        }
+    }
+
     /// `<ProjectBackupLocation>` from `config.user.xml`, trimmed; nil when absent or empty.
     public static func parseBackupLocation(_ xml: String) -> String? {
         guard let open = xml.range(of: "<ProjectBackupLocation>"),
@@ -24,6 +33,6 @@ public enum ResolveConfigParser {
         let dblist = try String(contentsOf: prefsDir.appendingPathComponent("dblist.conf"), encoding: .utf8)
         let userXML = (try? String(contentsOf: prefsDir.appendingPathComponent("config.user.xml"), encoding: .utf8)) ?? ""
         let backup = parseBackupLocation(userXML).map { URL(fileURLWithPath: $0, isDirectory: true) }
-        return ResolveConfig(libraries: parseDBList(dblist), backupRoot: backup)
+        return ResolveConfig(libraries: parseDBList(dblist), backupRoot: backup, skippedLibraries: parseSkippedLibraries(dblist))
     }
 }
