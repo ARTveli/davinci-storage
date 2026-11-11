@@ -50,19 +50,24 @@ struct ContentView: View {
             Sidebar()
                 .navigationSplitViewColumnWidth(min: 250, ideal: 290)
         } detail: {
-            Group {
-                if let r = model.result {
-                    switch model.section ?? .projects {
-                    case .projects: ProjectsView(report: r.report)
-                    case .leftovers: LeftoversView(report: r.report)
-                    case .service: ServiceView(report: r.report)
+            // Banners and the status bar are real rows of a VStack, not safe-area insets:
+            // Table (NSTableView) and the inspector ignore insets and would draw under them.
+            VStack(spacing: 0) {
+                Banners()
+                Group {
+                    if let r = model.result {
+                        switch model.section ?? .projects {
+                        case .projects: ProjectsView(report: r.report)
+                        case .leftovers: LeftoversView(report: r.report)
+                        case .service: ServiceView(report: r.report)
+                        }
+                    } else {
+                        ProgressView("Сканую бази DaVinci…").frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                } else {
-                    ProgressView("Сканую бази DaVinci…").frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                StatusBar()
             }
-            .safeAreaInset(edge: .top, spacing: 0) { Banners() }
-            .safeAreaInset(edge: .bottom, spacing: 0) { StatusBar() }
             .navigationTitle(model.section?.rawValue ?? "DaVinci Storage")
             .toolbar { MainToolbar() }
         }
