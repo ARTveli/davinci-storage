@@ -54,17 +54,19 @@ struct ProjectsView: View {
                         }
                     }
                 }
-                TableColumn("Бібліотека", value: \.library)
+                .width(min: 150, ideal: 185)
+                TableColumn("Бібліотека", value: \.library).width(min: 70, ideal: 105)
                 TableColumn("Остання зміна", value: \.date) { (vm: RowVM) in
-                    Text(vm.date, format: .dateTime.day().month().year())
+                    Text(vm.date, format: .dateTime.day(.twoDigits).month(.twoDigits).year())
                         .foregroundStyle(model.isOld(vm.row.project) ? .secondary : .primary)
                 }
-                TableColumn("Кеш", value: \.cache) { (vm: RowVM) in SizeText(vm.cache) }
-                TableColumn("Бекапи", value: \.backups) { (vm: RowVM) in SizeText(vm.backups) }
-                TableColumn("Стіли", value: \.stills) { (vm: RowVM) in SizeText(vm.stills) }
-                TableColumn("Magic Mask", value: \.mask) { (vm: RowVM) in SizeText(vm.mask) }
-                TableColumn("Проксі", value: \.proxy) { (vm: RowVM) in SizeText(vm.proxy) }
-                TableColumn("Разом", value: \.total) { (vm: RowVM) in SizeText(vm.total).fontWeight(.semibold) }
+                .width(min: 76, ideal: 84)
+                TableColumn("Кеш", value: \.cache) { (vm: RowVM) in SizeText(vm.cache) }.width(min: 64, ideal: 78)
+                TableColumn("Бекапи", value: \.backups) { (vm: RowVM) in SizeText(vm.backups) }.width(min: 64, ideal: 78)
+                TableColumn("Стіли", value: \.stills) { (vm: RowVM) in SizeText(vm.stills) }.width(min: 64, ideal: 78)
+                TableColumn("Magic Mask", value: \.mask) { (vm: RowVM) in SizeText(vm.mask) }.width(min: 64, ideal: 78)
+                TableColumn("Проксі", value: \.proxy) { (vm: RowVM) in SizeText(vm.proxy) }.width(min: 64, ideal: 78)
+                TableColumn("Разом", value: \.total) { (vm: RowVM) in SizeText(vm.total).fontWeight(.semibold) }.width(min: 72, ideal: 84)
             }
 
             if let id = focused.value, let row = report.rows.first(where: { $0.id == id }) {

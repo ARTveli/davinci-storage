@@ -15,8 +15,9 @@ struct DaVinciStorageApp: App {
         WindowGroup("DaVinci Storage") {
             ContentView()
                 .environmentObject(model)
-                .frame(minWidth: 1100, minHeight: 640)
+                .frame(minWidth: 1320, minHeight: 640)
         }
+        .defaultSize(width: 1440, height: 820)
     }
 }
 
