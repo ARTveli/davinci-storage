@@ -27,6 +27,7 @@
 | Стіли (нові) | `~/Movies/.gallery/<UUID>/` з `Info.txt` (Database/Project Name) | UUID + Info.txt |
 | Стіли (старі) | `/Library/Application Support/Blackmagic Design/DaVinci Resolve/.gallery` (`<StillUUID>.dpx`) | `Gallery::GyStill` у Project.db |
 | Magic Mask | шляхи, записані в Project.db (напр. `~/DaVinci Resolve Media/UKRAVIT/Magic Mask`), + корені `~/MAGIC_MASK_2_DAVINCI`, `~/DaVinci Resolve Media` | шлях з Project.db; інакше — за назвою папки (позначка «за назвою, неточно») |
+| Проксі / Optimized Media | `/Library/Application Support/Blackmagic Design/DaVinci Resolve/ProxyMedia`, `ProxyMedia`/`OptimizedMedia` поруч із кожним коренем CacheClip, + «Proxy generation location» з налаштувань проєкту (зараз папок немає — показуємо 0 / «не знайдено») | шлях з Project.db; інакше — за назвою підпапки (позначка «за назвою, неточно») |
 | Службові кеші | `~/Library/Application Support/Blackmagic Design/DaVinci Resolve/.LUT`, `~/Library/Caches/com.blackmagic-design.DaVinciResolve` | не прив'язані |
 | Frame.io | локальна папка кешу з Preferences → System → Internet Accounts (зараз не налаштована — ключ визначимо після першого рендеру; до того показуємо «не знайдено») | не прив'язана |
 
@@ -41,7 +42,7 @@
 
 ## Інтерфейс
 Бокова панель:
-- **Проєкти** — таблиця: Назва · Бібліотека · Остання зміна · Кеш · Бекапи · Стіли · Magic Mask · Разом. Сортування за будь-якою колонкою. Фільтр «старші за [3] місяці». Галочки по рядку та по категоріях.
+- **Проєкти** — таблиця: Назва · Бібліотека · Остання зміна · Кеш · Бекапи · Стіли · Magic Mask · Проксі · Разом. Сортування за будь-якою колонкою. Фільтр «старші за [3] місяці». Галочки по рядку та по категоріях.
 - **Видалені проєкти і дублі** — групи за UUID/назвою з розміром і поясненням, звідки відомо.
 - **Службові кеші** — `.LUT` (з поясненням: DaVinci відтворить сам), кеш програми, Frame.io.
 
