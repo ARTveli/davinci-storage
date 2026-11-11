@@ -53,9 +53,22 @@ public enum ProjectReader {
                 masks.formUnion(extractMagicMaskDirs(from: bytes))
             }) { return .failure(.query(e)) }
 
+            var folders = WorkingFolders()
+            if case .error(let e) = query(db, "SELECT FieldsBlob FROM SM_Config", { stmt in
+                guard let ptr = sqlite3_column_blob(stmt, 0) else { return }
+                let bytes = Array(UnsafeRawBufferPointer(start: ptr, count: Int(sqlite3_column_bytes(stmt, 0))))
+                let f = extractWorkingFolders(from: bytes)
+                folders.magicMaskRoots.formUnion(f.magicMaskRoots)
+                folders.cacheRoots.formUnion(f.cacheRoots)
+                folders.proxyRoots.formUnion(f.proxyRoots)
+            }) { return .failure(.query(e)) }
+            // Resolve writes Magic Mask files to "<configured folder>/Magic Mask".
+            masks.formUnion(folders.magicMaskRoots.map { normalizedPath(URL(fileURLWithPath: $0).appendingPathComponent("Magic Mask")) })
+
             let modified = lastMod.map { Date(timeIntervalSince1970: TimeInterval($0)) } ?? fileModificationDate(dbURL)
             return .success(Project(id: id.lowercased(), name: name, library: library, dbURL: dbURL,
-                                    lastModified: modified, stillIDs: stills, magicMaskDirs: masks))
+                                    lastModified: modified, stillIDs: stills, magicMaskDirs: masks,
+                                    cacheRoots: folders.cacheRoots, proxyRoots: folders.proxyRoots))
         }
     }
 
@@ -97,6 +110,39 @@ public enum ProjectReader {
     public static func extractMagicMaskDirs(from blob: [UInt8]) -> Set<String> {
         var result = matchMaskPaths(blob)
         if let plain = Zstd.decompressEmbeddedFrame(blob) { result.formUnion(matchMaskPaths(plain)) }
+        return result
+    }
+
+    /// Working folders from an SM_Config.FieldsBlob (protobuf, usually inside a zstd frame).
+    /// Fields: 124 = Magic Mask location, 39 = cache files location, 40 = proxy generation location.
+    public static func extractWorkingFolders(from blob: [UInt8]) -> WorkingFolders {
+        var f = WorkingFolders()
+        for bytes in [blob, Zstd.decompressEmbeddedFrame(blob) ?? []] where !bytes.isEmpty {
+            f.magicMaskRoots.formUnion(stringFields(bytes, tag: [0xE2, 0x07]))
+            f.cacheRoots.formUnion(stringFields(bytes, tag: [0xBA, 0x02]))
+            f.proxyRoots.formUnion(stringFields(bytes, tag: [0xC2, 0x02]))
+        }
+        return f
+    }
+
+    /// Length-delimited string values following `tag` that look like absolute paths.
+    private static func stringFields(_ b: [UInt8], tag: [UInt8]) -> Set<String> {
+        var result = Set<String>()
+        var i = 0
+        while i + tag.count < b.count {
+            defer { i += 1 }
+            guard b[i] == tag[0], Array(b[i..<(i + tag.count)]) == tag else { continue }
+            var j = i + tag.count, len = 0, shift = 0
+            while j < b.count, shift <= 14 {               // varint length, at most 3 bytes
+                len |= Int(b[j] & 0x7F) << shift
+                j += 1
+                if b[j - 1] & 0x80 == 0 { break }
+                shift += 7
+            }
+            guard len > 1, j + len <= b.count, b[j] == UInt8(ascii: "/"),
+                  let s = String(bytes: b[j..<(j + len)], encoding: .utf8), !s.contains("\0") else { continue }
+            result.insert(normalizedPath(URL(fileURLWithPath: s)))
+        }
         return result
     }
 

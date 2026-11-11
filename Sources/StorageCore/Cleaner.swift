@@ -71,8 +71,8 @@ public extension ScanResult {
     /// Cleaner allowed to touch every scanned location, the service caches and the Magic Mask folders projects use.
     func makeCleaner() -> Cleaner {
         let l = locations
-        let roots = l.cacheRoots + [l.backupRoot].compactMap { $0 } + [l.galleryProjectRoot, l.galleryLegacyRoot]
-            + l.magicMaskRoots + l.proxyRoots
+        let roots = allCacheRoots(l, projects) + [l.backupRoot].compactMap { $0 } + [l.galleryProjectRoot, l.galleryLegacyRoot]
+            + l.magicMaskRoots + allProxyRoots(l, projects)
         let items = l.serviceItems.map(\.url) + projects.flatMap { $0.magicMaskDirs.map { URL(fileURLWithPath: $0) } }
         return Cleaner(allowedRoots: roots, allowedItems: items, libraryRoots: libraryRoots)
     }

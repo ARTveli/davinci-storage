@@ -25,9 +25,15 @@ public struct Project: Hashable, Sendable {
     public let lastModified: Date
     public let stillIDs: Set<String>
     public let magicMaskDirs: Set<String>
+    /// Working folders from Project Settings (cache files / proxy generation location), normalized paths.
+    public var cacheRoots: Set<String>
+    public var proxyRoots: Set<String>
 
     public init(id: String, name: String, library: String, dbURL: URL, lastModified: Date,
-                stillIDs: Set<String>, magicMaskDirs: Set<String>) {
+                stillIDs: Set<String>, magicMaskDirs: Set<String>,
+                cacheRoots: Set<String> = [], proxyRoots: Set<String> = []) {
+        self.cacheRoots = cacheRoots
+        self.proxyRoots = proxyRoots
         self.id = id
         self.name = name
         self.library = library
@@ -66,6 +72,14 @@ public struct ResolveConfig: Sendable {
         self.backupRoot = backupRoot
         self.skippedLibraries = skippedLibraries
     }
+}
+
+/// Folders configured in a project's settings (SM_Config).
+public struct WorkingFolders: Sendable, Equatable {
+    public var magicMaskRoots: Set<String> = []
+    public var cacheRoots: Set<String> = []
+    public var proxyRoots: Set<String> = []
+    public init() {}
 }
 
 /// User-level gallery data (PowerGrades and other user albums) — never a project leftover.

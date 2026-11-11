@@ -12,7 +12,7 @@ public func scanStorage(_ loc: Locations, projects: [Project], user: UserGalleri
     }
 
     // Cache + backups: folders named by project UUID.
-    let uuidRoots: [(Category, URL)] = loc.cacheRoots.map { (.cache, $0) } + (loc.backupRoot.map { [(.backups, $0)] } ?? [])
+    let uuidRoots: [(Category, URL)] = allCacheRoots(loc, projects).map { (.cache, $0) } + (loc.backupRoot.map { [(.backups, $0)] } ?? [])
     for (category, root) in uuidRoots {
         for dir in subdirectories(of: root) {
             guard let id = uuidName(dir) else { continue }
@@ -62,7 +62,7 @@ public func scanStorage(_ loc: Locations, projects: [Project], user: UserGalleri
         }
     }
 
-    for root in loc.proxyRoots {
+    for root in allProxyRoots(loc, projects) {
         for dir in subdirectories(of: root) { addByName(.proxy, dir) }
     }
 
@@ -79,6 +79,25 @@ public func scanStorage(_ loc: Locations, projects: [Project], user: UserGalleri
             add(category, dir, [], .unlinked, name)
         }
     }
+}
+
+/// Default cache roots plus every cache folder configured in a project's settings (deduplicated).
+public func allCacheRoots(_ loc: Locations, _ projects: [Project]) -> [URL] {
+    merged(loc.cacheRoots, projects.flatMap(\.cacheRoots))
+}
+
+public func allProxyRoots(_ loc: Locations, _ projects: [Project]) -> [URL] {
+    merged(loc.proxyRoots, projects.flatMap(\.proxyRoots))
+}
+
+private func merged(_ base: [URL], _ extra: [String]) -> [URL] {
+    var seen = Set(base.map { claimKey($0) })
+    var out = base
+    for p in extra.sorted() {
+        let u = URL(fileURLWithPath: p, isDirectory: true)
+        if seen.insert(claimKey(u)).inserted { out.append(u) }
+    }
+    return out
 }
 
 private func claimKey(_ url: URL) -> String {
