@@ -30,17 +30,25 @@ DaVinci Storage reads your Resolve project libraries and links every one of thos
 - **Projects** — sortable table of every project in every disk library: last modified date and the space taken by cache, backups, stills, Magic Mask and proxies. Select a row to see each file and folder in the inspector, with *Reveal in Finder*.
 - **Mark old projects** — one click selects everything that belongs *only* to projects untouched for 1 / 3 / 6 / 12 months.
 - **Deleted projects & duplicates** — leftovers of projects that no longer exist in any library, plus copied Magic Mask folders.
-- **Service caches** — Resolve's compiled LUT cache (`.LUT`) and app cache, with an explanation of what is safe to remove.
+- **Library backup before every cleanup** — each project library's `Resolve Projects` folder is copied to `~/DAVINCI_DATA_BASE/_BACKUPS/2026-11-11 20-05 · DaVinci Resolve 21.2.0/<library>/`, verified file by file, and only the last 10 backups are kept.
+- **Old project backups** — Resolve keeps backups even for live projects; one click selects everything except the newest 3 versions of `Project.db` and of every timeline.
+- **LUT duplicates** — byte-identical LUTs across your LUT packs. Copies used by a project, a PowerGrade or a DCTL are locked, and the last copy of a LUT can never be removed.
+- **Magic Mask check** — the inspector shows the Magic Mask folder from *Project Settings* and whether it exists on disk.
+- **«Не чіпати» (protected)** — protected projects are never picked by automatic selection.
+- **Service caches** — Resolve's compiled LUT cache (`.LUT`), app cache, DaVinci logs and crash reports, with an explanation of what is safe to remove.
+- **Settings** (⌘,) — backup folder, how many library backups and project backup versions to keep, protected projects.
 - **Search, keyboard shortcuts** (⌘R rescan, ⌘⌫ move to Trash), light and dark mode.
 
 ### Safety first
 
 - Project databases (`Project.db`, `User.db`) are opened **read-only** and never modified.
 - Nothing is deleted — items are **moved to the Trash**, so everything can be restored.
+- **Every project library is backed up first**; if the backup or its verification fails, nothing is moved at all. Old backups are rotated only among folders the app created itself (marked with `.davinci-storage-backup`), and a backup connected back into Resolve as a library is never rotated.
 - Cleanup is **disabled while DaVinci Resolve is running**; after Resolve quits the selection is cleared and the disk re-scanned.
 - Right before moving anything the app **re-scans** and skips items that changed since you selected them.
 - It only touches known DaVinci locations, never anything inside or containing a project library, and follows no symlinks out of them.
 - User galleries (PowerGrades) are recognised and never offered for deletion.
+- A LUT is removable only if no project database, PowerGrade or DCTL refers to it; if any database can't be read, **all LUTs are locked**.
 - If a library, a project database or the settings can't be read, results are marked **«неточно» (uncertain)**, automatic selection is turned off, and the confirmation sheet warns about every affected item.
 
 ### How it links folders to projects
@@ -54,6 +62,7 @@ DaVinci Storage reads your Resolve project libraries and links every one of thos
 | Stills | `~/Movies/.gallery/<UUID>`, legacy `.gallery/<still>.dpx` | project / still UUID |
 | Magic Mask | paths stored in the project (clip records and *Project Settings → Working Folders*) | path from the project |
 | Proxies | `ProxyMedia` / `OptimizedMedia` | folder name (marked uncertain) |
+| LUT duplicates | `/Library/Application Support/Blackmagic Design/DaVinci Resolve/LUT` | SHA-256 of the content; usage from `Project.db`, `User.db` (PowerGrades) and DCTL folders |
 
 Clip records inside `Project.db` are zstd-compressed; the app uses the system's `libzstd` (Homebrew) when it is installed and otherwise marks Magic Mask results as uncertain.
 
@@ -117,17 +126,25 @@ DaVinci Storage читає бази проєктів DaVinci й прив'язу�
 - **Проєкти** — таблиця всіх проєктів з усіх баз на диску: дата останньої зміни та скільки займають кеш, бекапи, стіли, Magic Mask і проксі. Клацни рядок — праворуч з'являться всі файли й папки проєкту з кнопкою «Показати у Finder».
 - **Позначити старі** — одним кліком вибирає все, що належить *лише* проєктам, яких не відкривали 1 / 3 / 6 / 12 місяців.
 - **Видалені проєкти і дублі** — залишки проєктів, яких уже немає в жодній базі, та скопійовані папки Magic Mask.
-- **Службові кеші** — скомпільований кеш LUT (`.LUT`) і кеш програми з поясненням, що безпечно видаляти.
+- **Бекап баз перед кожним очищенням** — папка `Resolve Projects` кожної бази копіюється в `~/DAVINCI_DATA_BASE/_BACKUPS/2026-11-11 20-05 · DaVinci Resolve 21.2.0/<база>/`, копія звіряється з оригіналом, зберігаються останні 10 бекапів.
+- **Старі бекапи проєктів** — DaVinci зберігає бекапи навіть для живих проєктів; одним кліком вибирається все, крім 3 останніх версій `Project.db` і кожного таймлайну.
+- **Дублі LUT** — однакові за вмістом LUT у різних паках. Копії, які використовують проєкти, PowerGrade чи DCTL, заблоковані, а останню копію LUT видалити неможливо.
+- **Перевірка Magic Mask** — у деталях проєкту видно папку Magic Mask із *Project Settings* і чи існує вона на диску.
+- **«Не чіпати»** — такі проєкти ніколи не потрапляють в автоматичний вибір.
+- **Службові кеші** — скомпільований кеш LUT (`.LUT`), кеш програми, логи DaVinci і звіти про збої з поясненням, що безпечно видаляти.
+- **Налаштування** (⌘,) — папка бекапів, скільки бекапів баз і версій бекапів проєктів тримати, список «Не чіпати».
 - **Пошук і гарячі клавіші** (⌘R — сканувати знову, ⌘⌫ — у Кошик), світла й темна тема.
 
 ### Безпека насамперед
 
 - Бази проєктів (`Project.db`, `User.db`) відкриваються **лише для читання** і ніколи не змінюються.
 - Нічого не видаляється назавжди — усе **переміщується в Кошик** і може бути відновлене.
+- **Спершу робиться бекап усіх баз**; якщо бекап чи його перевірка не вдались, нічого не переміщується. Старі бекапи прибираються лише серед папок, які створила сама програма (з файлом `.davinci-storage-backup`), а бекап, підключений у DaVinci як база, ніколи не прибирається.
 - Поки **DaVinci Resolve відкритий, очищення вимкнене**; після закриття DaVinci вибір скидається, а диск сканується заново.
 - Безпосередньо перед переміщенням програма **сканує ще раз** і пропускає все, що змінилося після вибору.
 - Програма працює лише з відомими папками DaVinci, ніколи не чіпає бази проєктів і папки, що їх містять, і не переходить за символьними посиланнями.
 - Галереї користувача (PowerGrades) розпізнаються й ніколи не пропонуються до видалення.
+- LUT можна видалити, лише якщо на нього не посилається жоден проєкт, PowerGrade чи DCTL; якщо якусь базу не вдалося прочитати, **блокуються всі LUT**.
 - Якщо базу, проєкт чи налаштування не вдалося прочитати, результати позначаються **«неточно»**, автовибір вимикається, а вікно підтвердження попереджає про кожен такий об'єкт.
 
 ### Як програма знаходить, чиї це папки
@@ -141,6 +158,7 @@ DaVinci Storage читає бази проєктів DaVinci й прив'язу�
 | Стіли | `~/Movies/.gallery/<ID>`, старий формат `.gallery/<стіл>.dpx` | ID проєкту / стілу |
 | Magic Mask | шляхи, записані в проєкті (записи кліпів і *Project Settings → Working Folders*) | шлях із проєкту |
 | Проксі | `ProxyMedia` / `OptimizedMedia` | назва папки (позначка «неточно») |
+| Дублі LUT | `/Library/Application Support/Blackmagic Design/DaVinci Resolve/LUT` | SHA-256 вмісту; використання з `Project.db`, `User.db` (PowerGrade) і папок DCTL |
 
 Записи кліпів у `Project.db` стиснуті zstd. Програма використовує системну `libzstd` (з Homebrew), якщо вона встановлена; інакше результати для Magic Mask позначаються «неточно».
 
