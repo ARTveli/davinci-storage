@@ -192,5 +192,6 @@ scripts/                   збирання програми та іконки
 ---
 
 <p align="center">
-  Made by <a href="https://artveli.pro">Artem · artveli.color</a> — colorist, DaVinci Resolve
+  Made by <a href="https://artveli.pro">Artem · artveli.color</a> — colorist, DaVinci Resolve<br>
+  <a href="https://www.instagram.com/artveli.color">Instagram @artveli.color</a>
 </p>
